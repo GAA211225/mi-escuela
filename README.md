@@ -13,10 +13,13 @@ se envían solos cuando vuelve la conexión.
 - **Notificaciones**: aviso antes de cada clase (configurable: 0 a 60 min) y avisos de
   entregas (por defecto 1 día y 2 horas antes). Al tocar el aviso se abre la liga de la clase o la tarea.
 - **Voz**: al abrir la app te lee el resumen (clase que sigue y tareas pendientes).
-  Se activa en Ajustes → Voz, y también con el botón 🔊 de la barra.
+  Se activa en Ajustes → Voz, y también con el botón 🔊 de la barra. Ahí eliges entre
+  todas las voces instaladas en el teléfono (las de español aparecen primero), con
+  velocidad y tono; cada cambio se escucha al momento.
 - **Copia de seguridad**: exportar/importar un archivo JSON.
-- **Tu horario ya cargado**: Ajustes → *Cargar mi horario* mete las 8 materias de
-  `datos/horario.json` (materia, clave, grupo, profesor, edificio y salón por sesión).
+- **Tu horario ya cargado**: entra solo la primera vez que abres la app, desde
+  `datos/horario.json` (8 materias, 20 sesiones, con clave, grupo, profesor, edificio
+  y salón). Ajustes → *Cargar mi horario* lo vuelve a cargar si lo necesitas.
 
 ## Instalarla en el teléfono
 
@@ -42,11 +45,10 @@ Ya instalada funciona sin internet, incluso al reiniciar el teléfono.
 Está pensada para archivos estáticos servidos por HTTPS (requisito del service worker).
 
 - **GitHub Pages** (ya configurado): el workflow `.github/workflows/pages.yml` publica
-  este repo en cada push a `main`. Hay que activar una vez
-  *Settings → Pages → Source: GitHub Actions*.
+  este repo en cada push a `main`.
 - **Local para probar**: `npx http-server . -p 8080` y abre `http://localhost:8080`.
 
-La app queda en `https://gaa211225.github.io/mi-escuela/`.
+La app está en `https://gaa211225.github.io/mi-escuela/`.
 
 ## Sincronizar entre dispositivos (opcional)
 

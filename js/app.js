@@ -21,6 +21,7 @@
       aplicarAjustesEnFormulario();
       registrarServiceWorker();
       abrirVistaDeHash();
+      sembrarHorario();
       revisarAlertas();
       if (estado.ajustes.vozAlAbrir) hablar(resumenHablado());
       setInterval(function () { pintarHoy(); revisarAlertas(); }, 30000);
@@ -350,10 +351,15 @@
     try {
       speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(texto);
-      u.lang = 'es-MX';
       u.rate = Number(estado.ajustes.vozVelocidad) || 1;
+      u.pitch = Number(estado.ajustes.vozTono) || 1;
       var voz = elegirVoz();
-      if (voz) u.voice = voz;
+      u.lang = 'es-MX';
+      // Una voz inválida (desinstalada, o de otro perfil) hace que asignarla truene;
+      // preferimos hablar con la voz del sistema antes que quedarnos callados.
+      if (voz) {
+        try { u.voice = voz; u.lang = voz.lang; } catch (e) { console.warn('Voz no utilizable', e); }
+      }
       u.onerror = function () { vozPendiente = texto; };
       speechSynthesis.speak(u);
       // Chrome ignora speak() hasta que el usuario interactúa con la página.
@@ -376,11 +382,37 @@
   function llenarVoces() {
     if (!('speechSynthesis' in window)) return;
     var sel = $('#voz-elegida');
-    var voces = (speechSynthesis.getVoices() || []).filter(function (v) { return /^es/i.test(v.lang); });
+    var voces = speechSynthesis.getVoices() || [];
+    var esp = voces.filter(function (v) { return /^es/i.test(v.lang); });
+    var otras = voces.filter(function (v) { return !/^es/i.test(v.lang); });
+
+    function grupo(titulo, lista) {
+      if (!lista.length) return '';
+      return '<optgroup label="' + esc(titulo) + '">' + lista.map(function (v) {
+        return '<option value="' + esc(v.name) + '">' + esc(nombreVoz(v)) + '</option>';
+      }).join('') + '</optgroup>';
+    }
+
     sel.innerHTML = '<option value="">Predeterminada del sistema</option>' +
-      voces.map(function (v) { return '<option value="' + esc(v.name) + '">' + esc(v.name + ' (' + v.lang + ')') + '</option>'; }).join('');
-    sel.value = estado.ajustes.vozNombre || '';
+      grupo('Español', esp) + grupo('Otros idiomas', otras);
+
+    // Si la voz guardada ya no existe (otro teléfono, voz desinstalada), no la perdemos
+    // de vista: la mostramos marcada como no disponible.
+    var guardada = estado.ajustes.vozNombre;
+    if (guardada && !voces.some(function (v) { return v.name === guardada; })) {
+      sel.insertAdjacentHTML('beforeend',
+        '<option value="' + esc(guardada) + '">' + esc(guardada) + ' (no disponible aquí)</option>');
+    }
+    sel.value = guardada || '';
+    $('#aviso-voces').hidden = voces.length > 0;
   }
+
+  function nombreVoz(v) {
+    var etiqueta = v.name.replace(/\s*\(.*?\)\s*$/, '');
+    return etiqueta + ' · ' + v.lang + (v.localService ? '' : ' · en línea');
+  }
+
+  var FRASE_PRUEBA = 'Así te voy a avisar. Tu siguiente clase es Teoría Electromagnética, en el salón 114.';
 
   // Si Chrome bloqueó la voz por falta de interacción, la soltamos con el primer toque.
   document.addEventListener('pointerdown', function () {
@@ -455,14 +487,25 @@
       E.saveState(estado);
       if (e.target.checked) hablar(resumenHablado());
     });
+    $('#voz-velocidad').addEventListener('input', function (e) {
+      $('#val-velocidad').textContent = Number(e.target.value).toFixed(1);
+    });
     $('#voz-velocidad').addEventListener('change', function (e) {
       estado.ajustes.vozVelocidad = Number(e.target.value);
-      E.saveState(estado);
+      E.saveState(estado).then(function () { hablar(FRASE_PRUEBA); });
+    });
+    $('#voz-tono').addEventListener('input', function (e) {
+      $('#val-tono').textContent = Number(e.target.value).toFixed(1);
+    });
+    $('#voz-tono').addEventListener('change', function (e) {
+      estado.ajustes.vozTono = Number(e.target.value);
+      E.saveState(estado).then(function () { hablar(FRASE_PRUEBA); });
     });
     $('#voz-elegida').addEventListener('change', function (e) {
       estado.ajustes.vozNombre = e.target.value;
-      E.saveState(estado);
+      E.saveState(estado).then(function () { hablar(FRASE_PRUEBA); });
     });
+    $('#btn-probar-voz').addEventListener('click', function () { hablar(FRASE_PRUEBA); });
     $('#btn-leer').addEventListener('click', function () { hablar(resumenHablado()); });
     $('#btn-voz').addEventListener('click', function () {
       if (speechSynthesis.speaking) { speechSynthesis.cancel(); return; }
@@ -478,7 +521,7 @@
     $('#btn-exportar').addEventListener('click', exportar);
     $('#btn-importar').addEventListener('click', function () { $('#archivo-importar').click(); });
     $('#archivo-importar').addEventListener('change', importar);
-    $('#btn-horario-escuela').addEventListener('click', cargarHorario);
+    $('#btn-horario-escuela').addEventListener('click', function () { cargarHorario(false); });
 
     if ('speechSynthesis' in window) {
       llenarVoces();
@@ -504,6 +547,9 @@
     sel.value = v;
     $('#voz-al-abrir').checked = !!estado.ajustes.vozAlAbrir;
     $('#voz-velocidad').value = estado.ajustes.vozVelocidad || 1;
+    $('#voz-tono').value = estado.ajustes.vozTono || 1;
+    $('#val-velocidad').textContent = Number(estado.ajustes.vozVelocidad || 1).toFixed(1);
+    $('#val-tono').textContent = Number(estado.ajustes.vozTono || 1).toFixed(1);
     $('#sync-url').value = estado.ajustes.syncUrl || '';
     pintarEstadoSync();
   }
@@ -655,9 +701,17 @@
     ev.target.value = '';
   }
 
+  /** La primera vez que se abre la app, el horario del semestre entra solo. */
+  function sembrarHorario() {
+    if (estado.clases.length || estado.ajustes.horarioSembrado) return;
+    estado.ajustes.horarioSembrado = true;
+    cargarHorario(true);
+  }
+
   /** Carga el horario transcrito de la escuela (datos/horario.json). */
-  function cargarHorario() {
-    if (estado.clases.length && !confirm('Esto reemplaza las clases que ya tienes. ¿Continuar?')) return;
+  function cargarHorario(silencioso) {
+    if (!silencioso && estado.clases.length &&
+        !confirm('Esto reemplaza las clases que ya tienes. ¿Continuar?')) return;
     fetch('datos/horario.json').then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
@@ -683,8 +737,10 @@
       });
       return guardar('todo', 'importar-horario', { clases: estado.clases.length });
     }).then(function () {
-      aviso('Horario cargado');
+      aviso(silencioso ? 'Tu horario ya está cargado' : 'Horario cargado');
     }).catch(function (e) {
+      // Sin conexión y sin caché todavía: se reintenta la próxima vez que abra.
+      if (silencioso) { estado.ajustes.horarioSembrado = false; E.saveState(estado); return; }
       aviso('No se pudo cargar el horario: ' + e.message);
     });
   }

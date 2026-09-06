@@ -92,13 +92,22 @@
         <span>Leerme el resumen al abrir la app</span>
       </label>
       <label class="campo">
-        <span>Velocidad</span>
-        <input type="range" id="voz-velocidad" min="0.6" max="1.6" step="0.1" value="1">
-      </label>
-      <label class="campo">
         <span>Voz</span>
         <select id="voz-elegida"><option value="">Predeterminada del sistema</option></select>
       </label>
+      <p id="aviso-voces" class="tenue" hidden>Tu teléfono no reporta voces instaladas.
+        En Android se agregan desde Ajustes → Sistema → Idiomas → Salida de texto a voz.</p>
+      <div class="fila">
+        <label class="campo">
+          <span>Velocidad <b id="val-velocidad">1.0</b></span>
+          <input type="range" id="voz-velocidad" min="0.6" max="1.6" step="0.1" value="1">
+        </label>
+        <label class="campo">
+          <span>Tono <b id="val-tono">1.0</b></span>
+          <input type="range" id="voz-tono" min="0.5" max="1.8" step="0.1" value="1">
+        </label>
+      </div>
+      <button id="btn-probar-voz" class="secundario">Probar esta voz</button>
       <button id="btn-leer" class="secundario">Escuchar resumen</button>
     </div>
 
