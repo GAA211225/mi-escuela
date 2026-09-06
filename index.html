@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mi Escuela</title>
+<meta name="description" content="Horario, salones y tareas con avisos, funciona sin internet.">
+<meta name="theme-color" content="#4f46e5">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+  <h1>Mi Escuela</h1>
+  <div class="barra-acciones">
+    <button id="btn-voz" class="icono" title="Leer en voz alta" aria-label="Leer en voz alta">🔊</button>
+    <span id="estado-red" class="chip" title="Estado de conexión">•</span>
+  </div>
+</header>
+
+<main>
+  <!-- ------------------------------------------------------------------ HOY -->
+  <section id="vista-hoy" class="vista activa">
+    <div id="tarjeta-siguiente" class="tarjeta grande"></div>
+    <h2>Hoy · <span id="fecha-hoy"></span></h2>
+    <div id="lista-hoy" class="lista"></div>
+    <h2>Entregas próximas</h2>
+    <div id="lista-entregas" class="lista"></div>
+  </section>
+
+  <!-- -------------------------------------------------------------- HORARIO -->
+  <section id="vista-horario" class="vista">
+    <div class="fila-titulo">
+      <h2>Horario</h2>
+      <button class="primario" data-nueva-clase>+ Clase</button>
+    </div>
+    <div id="lista-horario" class="lista"></div>
+  </section>
+
+  <!-- --------------------------------------------------------------- TAREAS -->
+  <section id="vista-tareas" class="vista">
+    <div class="fila-titulo">
+      <h2>Tareas</h2>
+      <button class="primario" data-nueva-tarea>+ Tarea</button>
+    </div>
+    <div class="filtros">
+      <button class="filtro activo" data-filtro="pendientes">Pendientes</button>
+      <button class="filtro" data-filtro="hechas">Entregadas</button>
+      <button class="filtro" data-filtro="todas">Todas</button>
+    </div>
+    <div id="lista-tareas" class="lista"></div>
+  </section>
+
+  <!-- -------------------------------------------------------------- AJUSTES -->
+  <section id="vista-ajustes" class="vista">
+    <h2>Ajustes</h2>
+
+    <div class="tarjeta">
+      <h3>Notificaciones</h3>
+      <p id="estado-permiso" class="tenue"></p>
+      <button id="btn-permiso" class="primario">Activar notificaciones</button>
+      <label class="campo">
+        <span>Avisarme antes de cada clase</span>
+        <select id="aviso-clase">
+          <option value="0">Justo a la hora</option>
+          <option value="5">5 minutos antes</option>
+          <option value="10">10 minutos antes</option>
+          <option value="15">15 minutos antes</option>
+          <option value="30">30 minutos antes</option>
+          <option value="60">1 hora antes</option>
+        </select>
+      </label>
+      <label class="campo">
+        <span>Avisos de tareas</span>
+        <select id="aviso-tareas">
+          <option value="1440,120">1 día y 2 horas antes</option>
+          <option value="2880,1440,120">2 días, 1 día y 2 horas antes</option>
+          <option value="1440">Solo 1 día antes</option>
+          <option value="120">Solo 2 horas antes</option>
+        </select>
+      </label>
+      <button id="btn-probar" class="secundario">Probar una notificación</button>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Voz</h3>
+      <label class="check">
+        <input type="checkbox" id="voz-al-abrir">
+        <span>Leerme el resumen al abrir la app</span>
+      </label>
+      <label class="campo">
+        <span>Velocidad</span>
+        <input type="range" id="voz-velocidad" min="0.6" max="1.6" step="0.1" value="1">
+      </label>
+      <label class="campo">
+        <span>Voz</span>
+        <select id="voz-elegida"><option value="">Predeterminada del sistema</option></select>
+      </label>
+      <button id="btn-leer" class="secundario">Escuchar resumen</button>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Sincronizar entre dispositivos <span class="tenue">(opcional)</span></h3>
+      <p class="tenue">Todo se guarda en el teléfono y funciona sin internet. Si pones aquí la
+        dirección de un servidor, los cambios que hagas sin conexión se envían solos al volver a
+        tener internet.</p>
+      <label class="campo">
+        <span>URL del servidor</span>
+        <input type="url" id="sync-url" placeholder="https://…/sync" inputmode="url">
+      </label>
+      <p id="estado-sync" class="tenue"></p>
+      <button id="btn-sync" class="secundario">Sincronizar ahora</button>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Copia de seguridad</h3>
+      <button id="btn-exportar" class="secundario">Exportar a archivo</button>
+      <button id="btn-importar" class="secundario">Importar archivo</button>
+      <input type="file" id="archivo-importar" accept="application/json" hidden>
+      <button id="btn-horario-escuela" class="secundario">Cargar mi horario</button>
+    </div>
+
+    <p class="tenue centro" id="pie-version"></p>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button class="tab activa" data-vista="hoy"><span>📅</span>Hoy</button>
+  <button class="tab" data-vista="horario"><span>🕘</span>Horario</button>
+  <button class="tab" data-vista="tareas"><span>📝</span>Tareas</button>
+  <button class="tab" data-vista="ajustes"><span>⚙️</span>Ajustes</button>
+</nav>
+
+<!-- ------------------------------------------------------------ FORMULARIOS -->
+<dialog id="dialogo-clase">
+  <form method="dialog" id="form-clase">
+    <h3 id="titulo-clase">Nueva clase</h3>
+    <input type="hidden" name="id">
+    <label class="campo"><span>Materia</span><input name="materia" required autocomplete="off"></label>
+    <div class="fila">
+      <label class="campo"><span>Clave</span><input name="clave" autocomplete="off" placeholder="M212"></label>
+      <label class="campo"><span>Grupo</span><input name="grupo" autocomplete="off" placeholder="2MM4"></label>
+    </div>
+    <label class="campo"><span>Profesor</span><input name="profesor" autocomplete="off"></label>
+    <div class="fila">
+      <label class="campo"><span>Edificio</span><input name="edificio" autocomplete="off" placeholder="A1"></label>
+      <label class="campo"><span>Salón</span><input name="salon" autocomplete="off" placeholder="122"></label>
+    </div>
+    <label class="campo"><span>Plataforma</span><input name="plataforma" list="plataformas" autocomplete="off" placeholder="Classroom, Teams, Zoom…"></label>
+    <label class="campo"><span>Liga de la clase</span><input name="url" type="url" inputmode="url" placeholder="https://…"></label>
+    <label class="campo"><span>Día</span>
+      <select name="dia">
+        <option value="1">Lunes</option><option value="2">Martes</option>
+        <option value="3">Miércoles</option><option value="4">Jueves</option>
+        <option value="5">Viernes</option><option value="6">Sábado</option>
+        <option value="0">Domingo</option>
+      </select>
+    </label>
+    <div class="fila">
+      <label class="campo"><span>Empieza</span><input name="inicio" type="time" required value="07:00"></label>
+      <label class="campo"><span>Termina</span><input name="fin" type="time" required value="08:00"></label>
+    </div>
+    <menu>
+      <button type="button" class="peligro" id="borrar-clase" hidden>Borrar</button>
+      <button value="cancelar" class="secundario">Cancelar</button>
+      <button value="guardar" class="primario">Guardar</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dialogo-tarea">
+  <form method="dialog" id="form-tarea">
+    <h3 id="titulo-tarea">Nueva tarea</h3>
+    <input type="hidden" name="id">
+    <label class="campo"><span>Tarea</span><input name="titulo" required autocomplete="off"></label>
+    <label class="campo"><span>Materia</span>
+      <select name="claseId" id="select-materia"><option value="">— Sin materia —</option></select>
+    </label>
+    <label class="campo"><span>Se entrega</span><input name="entrega" type="datetime-local" required></label>
+    <label class="campo"><span>Plataforma</span><input name="plataforma" list="plataformas" autocomplete="off" placeholder="Classroom, Teams, Moodle…"></label>
+    <label class="campo"><span>Liga de entrega</span><input name="url" type="url" inputmode="url" placeholder="https://…"></label>
+    <label class="campo"><span>Notas</span><textarea name="notas" rows="2"></textarea></label>
+    <menu>
+      <button type="button" class="peligro" id="borrar-tarea" hidden>Borrar</button>
+      <button value="cancelar" class="secundario">Cancelar</button>
+      <button value="guardar" class="primario">Guardar</button>
+    </menu>
+  </form>
+</dialog>
+
+<datalist id="plataformas">
+  <option>Google Classroom</option><option>Microsoft Teams</option><option>Zoom</option>
+  <option>Moodle</option><option>Blackboard</option><option>Canvas</option>
+  <option>Presencial</option><option>Correo</option><option>WhatsApp</option>
+</datalist>
+
+<div id="aviso" class="aviso" hidden></div>
+
+<script src="js/core.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

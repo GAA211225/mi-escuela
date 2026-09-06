@@ -1,0 +1,38 @@
+{
+  "nombre": "Horario 2MM/3MM/4MM",
+  "clases": [
+    { "clave": "M212", "grupo": "2MM4", "materia": "Mecánica de Fluidos",
+      "profesor": "Miguel Ángel Moreno Báez", "edificio": "A1", "salon": "122",
+      "sesiones": [ { "dia": 1, "inicio": "07:00", "fin": "08:30" }, { "dia": 4, "inicio": "07:00", "fin": "08:30" } ] },
+
+    { "clave": "M205", "grupo": "2MM5", "materia": "Diseño Básico de Elementos de Máquinas",
+      "profesor": "Jorge Talavera Otero", "edificio": "A1", "salon": "122",
+      "sesiones": [ { "dia": 1, "inicio": "10:00", "fin": "11:30" }, { "dia": 3, "inicio": "10:00", "fin": "11:30" }, { "dia": 4, "inicio": "08:30", "fin": "10:00" } ] },
+
+    { "clave": "M220", "grupo": "2MM6", "materia": "Sistemas Neurodifusos",
+      "profesor": "Omar Desiga Orenday", "edificio": "L1", "salon": "LE1",
+      "sesiones": [ { "dia": 2, "inicio": "08:30", "fin": "10:00" }, { "dia": 3, "inicio": "11:30", "fin": "13:00" } ] },
+
+    { "clave": "M210", "grupo": "2MM7", "materia": "Mantenimiento y Sistemas de Manufactura",
+      "profesor": "Eleazar Pacheco Reyes", "edificio": "P1", "salon": "LCNC",
+      "sesiones": [ { "dia": 2, "inicio": "13:00", "fin": "14:30" },
+                    { "dia": 4, "inicio": "13:00", "fin": "16:00", "edificio": "P1", "salon": "LMH" } ] },
+
+    { "clave": "M221", "grupo": "2MM8", "materia": "Teoría Electromagnética",
+      "profesor": "Panayotis Vyridis", "edificio": "A1", "salon": "114",
+      "sesiones": [ { "dia": 1, "inicio": "11:30", "fin": "13:00" }, { "dia": 2, "inicio": "14:30", "fin": "16:00" }, { "dia": 3, "inicio": "13:00", "fin": "14:30" } ] },
+
+    { "clave": "M314", "grupo": "3MM4", "materia": "Proyecto Integrador",
+      "profesor": "Carlos Daniel Rico Mandujano", "edificio": "L2", "salon": "CAD",
+      "sesiones": [ { "dia": 1, "inicio": "14:30", "fin": "16:00" }, { "dia": 5, "inicio": "11:30", "fin": "13:00" } ] },
+
+    { "clave": "M404", "grupo": "4MM2", "materia": "Metodología de la Investigación",
+      "profesor": "Uriel Alejandro Villegas Cuevas", "edificio": "L2", "salon": "LCAD2",
+      "sesiones": [ { "dia": 2, "inicio": "11:30", "fin": "13:00" }, { "dia": 4, "inicio": "11:30", "fin": "13:00" }, { "dia": 5, "inicio": "13:00", "fin": "14:30" } ] },
+
+    { "clave": "M426", "grupo": "4MM6", "materia": "Diseño de Equipo para Manejo de Materiales",
+      "profesor": "Eleazar Pacheco Reyes", "edificio": "P1", "salon": "LMH",
+      "sesiones": [ { "dia": 1, "inicio": "08:30", "fin": "10:00" }, { "dia": 3, "inicio": "08:30", "fin": "10:00" },
+                    { "dia": 5, "inicio": "08:30", "fin": "10:00", "edificio": "L2", "salon": "LR" } ] }
+  ]
+}
