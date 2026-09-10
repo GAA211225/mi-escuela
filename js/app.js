@@ -445,6 +445,11 @@
     // Abrir formularios
     $$('[data-nueva-clase]').forEach(function (b) { b.addEventListener('click', function () { abrirClase(null); }); });
     $$('[data-nueva-tarea]').forEach(function (b) { b.addEventListener('click', function () { abrirTarea(null); }); });
+    $('#btn-dictar-tarea').addEventListener('click', iniciarDictado);
+    $('#btn-cancelar-dictado').addEventListener('click', function () {
+      if (reconocimiento) { try { reconocimiento.onend = null; reconocimiento.abort(); } catch (e) {} }
+      $('#dialogo-dictado').close();
+    });
 
     document.addEventListener('click', function (ev) {
       var elClase = ev.target.closest('[data-clase]');
@@ -668,6 +673,74 @@
     guardar('tarea', 'borrar', { id: id }).then(function () { aviso('Tarea borrada'); });
   }
 
+  /* ----------------------------------------------------------- dictar tarea */
+
+  var reconocimiento = null;
+
+  function soportaDictado() {
+    return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  }
+
+  function iniciarDictado() {
+    if (!soportaDictado()) { aviso('Tu navegador no soporta dictado por voz (usa Chrome)'); return; }
+    var Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    reconocimiento = new Ctor();
+    reconocimiento.lang = 'es-MX';
+    reconocimiento.interimResults = true;
+    reconocimiento.maxAlternatives = 1;
+
+    var cuadro = $('#dictado-transcripcion');
+    var estadoTexto = $('#dictado-estado');
+    cuadro.textContent = '';
+    estadoTexto.textContent = 'Escuchando…';
+    $('#dialogo-dictado').showModal();
+
+    reconocimiento.onresult = function (ev) {
+      var texto = Array.prototype.map.call(ev.results, function (r) { return r[0].transcript; }).join(' ');
+      cuadro.textContent = texto;
+      if (ev.results[ev.results.length - 1].isFinal) finalizarDictado(texto);
+    };
+    reconocimiento.onerror = function (ev) {
+      $('#dialogo-dictado').close();
+      if (ev.error === 'no-speech') aviso('No escuché nada, intenta de nuevo');
+      else if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') aviso('Necesito permiso del micrófono');
+      else if (ev.error !== 'aborted') aviso('No se pudo escuchar: ' + ev.error);
+    };
+    reconocimiento.onend = function () {
+      // Si terminó sin que llegara un resultado final (silencio, se cortó), cerramos.
+      if ($('#dialogo-dictado').open) $('#dialogo-dictado').close();
+    };
+    try { reconocimiento.start(); } catch (e) { $('#dialogo-dictado').close(); aviso('No se pudo iniciar el micrófono'); }
+  }
+
+  function finalizarDictado(texto) {
+    reconocimiento = null;
+    $('#dialogo-dictado').close();
+    var r = E.interpretarDictado(texto, {
+      ahora: new Date(),
+      materias: estado.clases
+        .filter(function (c, i, arr) { return arr.findIndex(function (x) { return x.materia === c.materia; }) === i; })
+        .map(function (c) { return { id: c.id, materia: c.materia }; })
+    });
+    var datos = {
+      id: E.uid(),
+      titulo: r.titulo,
+      claseId: r.claseId || '',
+      materia: '',
+      entrega: r.entrega.toISOString(),
+      plataforma: r.plataforma || '',
+      url: '',
+      notas: 'Agregada por dictado: "' + texto + '"',
+      hecha: false
+    };
+    estado.tareas.push(datos);
+    guardar('tarea', 'crear', datos).then(function () {
+      var partes = [r.materiaNombre, r.plataforma, 'vence ' + E.formatoFecha(r.entrega)].filter(Boolean);
+      aviso(datos.titulo + ' · ' + partes.join(' · '), { etiqueta: 'Editar', fn: function () { abrirTarea(datos.id); } });
+      if (estado.ajustes.vozAlAbrir) hablar('Agregué la tarea: ' + datos.titulo + '.');
+    });
+  }
+
   function paraInput(valor) {
     var d = new Date(valor);
     if (isNaN(d)) return '';
@@ -748,12 +821,22 @@
   /* ------------------------------------------------------------------ utilidad */
 
   var timerAviso = null;
-  function aviso(texto) {
+  /** accion opcional: { etiqueta, fn } agrega un botón al toast (p. ej. "Editar"). */
+  function aviso(texto, accion) {
     var el = $('#aviso');
-    el.textContent = texto;
+    $('#aviso-texto').textContent = texto;
+    var btn = $('#aviso-boton');
+    if (accion) {
+      btn.textContent = accion.etiqueta;
+      btn.hidden = false;
+      btn.onclick = function () { el.hidden = true; clearTimeout(timerAviso); accion.fn(); };
+    } else {
+      btn.hidden = true;
+      btn.onclick = null;
+    }
     el.hidden = false;
     clearTimeout(timerAviso);
-    timerAviso = setTimeout(function () { el.hidden = true; }, 2600);
+    timerAviso = setTimeout(function () { el.hidden = true; }, accion ? 5000 : 2600);
   }
 
   function esc(s) {

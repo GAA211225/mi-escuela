@@ -44,7 +44,10 @@
   <section id="vista-tareas" class="vista">
     <div class="fila-titulo">
       <h2>Tareas</h2>
-      <button class="primario" data-nueva-tarea>+ Tarea</button>
+      <div class="botones-tareas">
+        <button class="icono" id="btn-dictar-tarea" title="Dictar tarea" aria-label="Dictar tarea">🎤</button>
+        <button class="primario" data-nueva-tarea>+ Tarea</button>
+      </div>
     </div>
     <div class="filtros">
       <button class="filtro activo" data-filtro="pendientes">Pendientes</button>
@@ -200,13 +203,27 @@
   </form>
 </dialog>
 
+<dialog id="dialogo-dictado">
+  <div class="dictado">
+    <div class="mic-pulso">🎤</div>
+    <p id="dictado-estado" class="tenue">Escuchando…</p>
+    <p id="dictado-transcripcion"></p>
+  </div>
+  <menu>
+    <button type="button" class="secundario" id="btn-cancelar-dictado">Cancelar</button>
+  </menu>
+</dialog>
+
 <datalist id="plataformas">
   <option>Google Classroom</option><option>Microsoft Teams</option><option>Zoom</option>
   <option>Moodle</option><option>Blackboard</option><option>Canvas</option>
   <option>Presencial</option><option>Correo</option><option>WhatsApp</option>
 </datalist>
 
-<div id="aviso" class="aviso" hidden></div>
+<div id="aviso" class="aviso" hidden>
+  <span id="aviso-texto"></span>
+  <button id="aviso-boton" class="aviso-btn" hidden></button>
+</div>
 
 <script src="js/core.js"></script>
 <script src="js/app.js"></script>

@@ -44,7 +44,9 @@
     avisoClaseMin: 10,          // minutos antes de que empiece la clase
     avisosTareaMin: [1440, 120], // 1 día y 2 horas antes de la entrega
     syncUrl: '',                // endpoint opcional para respaldar/sincronizar
-    tema: 'auto'
+    tema: 'auto',
+    vozAlAbrir: true,           // leer el resumen en voz alta al abrir la app
+    vozAutoMigrada: true        // instalaciones nuevas ya nacen con la voz activa
   };
 
   function emptyState() {
@@ -70,7 +72,18 @@
   }
 
   function loadState() {
-    return kvGet('state').then(normalize).catch(function () { return emptyState(); });
+    return kvGet('state').then(function (raw) {
+      var s = normalize(raw);
+      var yaMigrada = !!(raw && raw.ajustes && raw.ajustes.vozAutoMigrada);
+      if (!yaMigrada) {
+        // Instalaciones de antes de esta versión guardaban la voz apagada por
+        // defecto; la encendemos una vez y respetamos lo que el usuario decida después.
+        s.ajustes.vozAlAbrir = true;
+        s.ajustes.vozAutoMigrada = true;
+        return saveState(s);
+      }
+      return s;
+    }).catch(function () { return emptyState(); });
   }
 
   function saveState(state) {
@@ -287,6 +300,195 @@
     });
   }
 
+  /* ---------------------------------------------------------------- Dictado */
+
+  var DIAS_SEM = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+    'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var PLATAFORMAS_DICTADO = {
+    'google classroom': 'Google Classroom', classroom: 'Google Classroom',
+    'microsoft teams': 'Microsoft Teams', teams: 'Microsoft Teams',
+    zoom: 'Zoom', moodle: 'Moodle', blackboard: 'Blackboard', canvas: 'Canvas',
+    presencial: 'Presencial', correo: 'Correo', 'correo electronico': 'Correo',
+    email: 'Correo', whatsapp: 'WhatsApp'
+  };
+  var MAPA_ACENTOS = { a: '[aá]', e: '[eé]', i: '[íi]', o: '[oó]', u: '[uúü]', n: '[nñ]' };
+
+  function escaparRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /** Convierte «manana» en un patrón que también acepta «mañana», sin tocar
+   * el texto original: así el título dictado conserva sus acentos. */
+  function regexTolerante(palabra) {
+    return escaparRegex(palabra.toLowerCase()).replace(/[aeioun]/g, function (v) { return MAPA_ACENTOS[v]; });
+  }
+
+  function algunaCoincide(texto, palabras) {
+    var re = new RegExp('\\b(' + palabras.map(regexTolerante).join('|') + ')\\b');
+    return re.test(texto) ? re : null;
+  }
+
+  /**
+   * Interpreta una frase dictada ("tarea de mecánica, entregar el problemario,
+   * para mañana a las 8 de la noche, por classroom") y saca título, materia
+   * (contra las clases que ya existen), plataforma y fecha/hora de entrega.
+   * No usa IA: son patrones de texto, así que frases fuera de lo común caen
+   * a valores por defecto (mañana 23:59) que el usuario puede corregir. El
+   * texto nunca pierde acentos ni mayúsculas de origen, para que el título
+   * quede tal como se dictó.
+   */
+  function interpretarDictado(textoOriginal, opciones) {
+    opciones = opciones || {};
+    var ahora = opciones.ahora || new Date();
+    var materiasDisponibles = opciones.materias || []; // [{id, materia}]
+    var texto = ' ' + String(textoOriginal || '').replace(/[.,;:!?¿¡]/g, ' ') + ' ';
+    var textoMin = texto.toLowerCase();
+    var quitar = function (re) { texto = texto.replace(re, ' '); textoMin = texto.toLowerCase(); };
+
+    // Verbo inicial ("agrega", "anota", "recuérdame"...) y luego, si la hay,
+    // la palabra "tarea/pendiente/actividad" con su conector.
+    var reVerbo = new RegExp('^\\s*(' +
+      ['agregar', 'agrega', 'anota', 'anotar', 'registra', 'registrar', 'pon',
+        'crea', 'crear', 'recuerdame', 'recuerda'].map(regexTolerante).join('|') +
+      ')\\b(\\s+que)?(\\s+(el|la|los|las))?\\s*');
+    quitar(reVerbo);
+    quitar(new RegExp('^\\s*(' + ['nueva', 'nuevo'].map(regexTolerante).join('|') + ')\\s*'));
+    quitar(new RegExp('^\\s*(' + ['tarea', 'pendiente', 'actividad'].map(regexTolerante).join('|') +
+      ')\\s*(de|para)?\\s*'));
+
+    // Plataforma
+    var plataforma = '';
+    Object.keys(PLATAFORMAS_DICTADO).sort(function (a, b) { return b.length - a.length; }).some(function (clave) {
+      var pat = regexTolerante(clave);
+      var re = new RegExp('\\b(por|en)\\s+' + pat + '\\b|\\b' + pat + '\\b');
+      var m = textoMin.match(re);
+      if (m) { plataforma = PLATAFORMAS_DICTADO[clave]; quitar(new RegExp(escaparRegex(m[0]))); return true; }
+      return false;
+    });
+
+    // Materia: contra las clases reales del usuario, por nombre completo o por
+    // una palabra distintiva (5+ letras) de la materia.
+    var claseId = '', materiaNombre = '';
+    materiasDisponibles.slice()
+      .sort(function (a, b) { return b.materia.length - a.materia.length; })
+      .some(function (c) {
+        var reCompleta = new RegExp('\\b(de|del|para)?\\s*' + regexTolerante(c.materia) + '\\b');
+        var m = textoMin.match(reCompleta);
+        if (m) { claseId = c.id; materiaNombre = c.materia; quitar(new RegExp(escaparRegex(m[0]))); return true; }
+        var palabra = c.materia.split(/\s+/).filter(function (p) { return p.length >= 5; })
+          .find(function (p) { return new RegExp('\\b' + regexTolerante(p) + '\\b').test(textoMin); });
+        if (palabra) {
+          claseId = c.id; materiaNombre = c.materia;
+          var mp = textoMin.match(new RegExp('\\b' + regexTolerante(palabra) + '\\b'));
+          quitar(new RegExp(escaparRegex(mp[0])));
+          return true;
+        }
+        return false;
+      });
+
+    // Hora (antes que la fecha: si no, "de la mañana" en "a las 9 de la mañana"
+    // se confunde con la palabra "mañana" de "día siguiente").
+    var fecha = new Date(ahora);
+    var horaEncontrada = false;
+    var mHora = textoMin.match(new RegExp('\\ba\\s*las?\\s+(\\d{1,2})(?::(\\d{2}))?\\s*(de\\s+la\\s+(' +
+        regexTolerante('manana') + '|tarde|noche)|am|pm)?\\b')) ||
+      textoMin.match(/\b(\d{1,2}):(\d{2})\s*(am|pm)?\b/);
+    if (mHora) {
+      var h = parseInt(mHora[1], 10);
+      var min = mHora[2] ? parseInt(mHora[2], 10) : 0;
+      var periodo = (mHora[3] || mHora[4] || '').toLowerCase();
+      if (/tarde|noche|pm/.test(periodo) && h < 12) h += 12;
+      if (/pm/.test(periodo) === false && /ma[nñ]ana|am/.test(periodo) && h === 12) h = 0;
+      fecha.setHours(h, min, 0, 0);
+      horaEncontrada = true;
+      quitar(new RegExp(escaparRegex(mHora[0])));
+    }
+
+    // Fecha
+    var fechaEncontrada = false;
+    if (algunaCoincide(textoMin, ['pasado manana'])) {
+      fecha.setDate(ahora.getDate() + 2); fechaEncontrada = true;
+      quitar(algunaCoincide(textoMin, ['pasado manana']));
+    } else if (algunaCoincide(textoMin, ['manana'])) {
+      fecha.setDate(ahora.getDate() + 1); fechaEncontrada = true;
+      quitar(algunaCoincide(textoMin, ['manana']));
+    } else if (algunaCoincide(textoMin, ['hoy'])) {
+      fechaEncontrada = true;
+      quitar(algunaCoincide(textoMin, ['hoy']));
+    } else {
+      var mDias = textoMin.match(/\ben\s+(\d+)\s+dias?\b/);
+      if (mDias) {
+        fecha.setDate(ahora.getDate() + parseInt(mDias[1], 10)); fechaEncontrada = true;
+        quitar(new RegExp(escaparRegex(mDias[0])));
+      } else {
+        var diaSemHallado = null;
+        DIAS_SEM.some(function (d, idx) {
+          var re = new RegExp('\\b(el\\s+)?(este\\s+|' + regexTolerante('proximo') + '\\s+)?' + regexTolerante(d) + '\\b');
+          var m = textoMin.match(re);
+          if (m) { diaSemHallado = { idx: idx, proximo: /pr[oó]ximo/.test(m[0]) }; quitar(new RegExp(escaparRegex(m[0]))); return true; }
+          return false;
+        });
+        if (diaSemHallado) {
+          var delta = (diaSemHallado.idx - ahora.getDay() + 7) % 7;
+          if (delta === 0 && diaSemHallado.proximo) delta = 7;
+          fecha.setDate(ahora.getDate() + delta);
+          fechaEncontrada = true;
+        } else {
+          var mFechaMes = null, mesIdx = -1;
+          MESES.some(function (mes, idx) {
+            var re = new RegExp('\\b(\\d{1,2})\\s+de\\s+' + regexTolerante(mes) + '\\b');
+            var m = textoMin.match(re);
+            if (m) { mFechaMes = m; mesIdx = idx; return true; }
+            return false;
+          });
+          if (mFechaMes) {
+            fecha.setMonth(mesIdx); fecha.setDate(parseInt(mFechaMes[1], 10));
+            if (fecha < ahora) fecha.setFullYear(fecha.getFullYear() + 1);
+            fechaEncontrada = true;
+            quitar(new RegExp(escaparRegex(mFechaMes[0])));
+          } else {
+            var mNum = textoMin.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
+            if (mNum) {
+              fecha.setMonth(parseInt(mNum[2], 10) - 1);
+              fecha.setDate(parseInt(mNum[1], 10));
+              if (mNum[3]) fecha.setFullYear(mNum[3].length === 2 ? 2000 + parseInt(mNum[3], 10) : parseInt(mNum[3], 10));
+              else if (fecha < ahora) fecha.setFullYear(fecha.getFullYear() + 1);
+              fechaEncontrada = true;
+              quitar(new RegExp(escaparRegex(mNum[0])));
+            }
+          }
+        }
+      }
+    }
+    if (!fechaEncontrada) fecha.setDate(ahora.getDate() + 1);
+    if (!horaEncontrada) fecha.setHours(23, 59, 0, 0);
+
+    // Lo que sobra, limpio de conectores sueltos, es el título (con sus acentos intactos).
+    texto = texto.replace(/\s+/g, ' ').trim();
+    var conectores = ['para', 'de', 'del', 'el', 'la', 'los', 'las', 'por', 'en', 'que'];
+    for (var i = 0; i < 3; i++) {
+      texto = texto
+        .replace(new RegExp('^(' + conectores.map(regexTolerante).join('|') + ')\\s+', 'i'), '')
+        .replace(new RegExp('\\s+(' + conectores.map(regexTolerante).join('|') + ')$', 'i'), '')
+        .trim();
+    }
+    var titulo = texto
+      ? texto.charAt(0).toUpperCase() + texto.slice(1)
+      : (materiaNombre ? 'Tarea de ' + materiaNombre : 'Nueva tarea');
+
+    return {
+      titulo: titulo,
+      claseId: claseId,
+      materiaNombre: materiaNombre,
+      plataforma: plataforma,
+      entrega: fecha,
+      fechaSupuesta: !fechaEncontrada,
+      horaSupuesta: !horaEncontrada
+    };
+  }
+
+
   global.Escuela = {
     DIAS: DIAS,
     DIAS_CORTO: DIAS_CORTO,
@@ -307,6 +509,7 @@
     dispararAlertas: dispararAlertas,
     formatoFecha: formatoFecha,
     encolar: encolar,
-    sincronizar: sincronizar
+    sincronizar: sincronizar,
+    interpretarDictado: interpretarDictado
   };
 })(typeof self !== 'undefined' ? self : this);
