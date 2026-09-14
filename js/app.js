@@ -94,6 +94,7 @@
     pintarHoy();
     pintarHorario();
     pintarTareas();
+    pintarTarjetas();
     pintarRed();
     pintarPermiso();
     llenarSelectMaterias();
@@ -222,6 +223,26 @@
       '<span class="cuerpo" data-tarea="' + t.id + '" role="button" tabindex="0">' +
       '<span class="titulo">' + esc(t.titulo) + '</span>' +
       '<span class="sub">' + esc(sub) + '</span></span></div>';
+  }
+
+  function pintarTarjetas() {
+    var ahora = new Date();
+    var lista = E.proximosCortesYPagos(estado, ahora)
+      .sort(function (a, b) { return Math.min(a.corte, a.pago) - Math.min(b.corte, b.pago); });
+    $('#lista-tarjetas').innerHTML = lista.length
+      ? lista.map(itemTarjeta).join('')
+      : '<div class="vacio">Todavía no tienes tarjetas. Toca «+ Tarjeta».</div>';
+  }
+
+  function itemTarjeta(o) {
+    var t = o.tarjeta;
+    var urgente = Math.min(o.corte, o.pago) - new Date() < 3 * 86400000;
+    var sub = (t.monto ? '$' + t.monto + ' · ' : '') +
+      'Corte ' + E.formatoFecha(o.corte).replace(/\s\d\d:\d\d$/, '') + ' · ' +
+      'Pago ' + E.formatoFecha(o.pago).replace(/\s\d\d:\d\d$/, '');
+    return '<button class="item ' + (urgente ? 'urgente' : '') + '" data-tarjeta="' + t.id + '">' +
+      '<span class="cuerpo"><span class="titulo">' + esc(t.nombre) + '</span>' +
+      '<span class="sub">' + esc(sub) + '</span></span></button>';
   }
 
   function llenarSelectMaterias() {
@@ -445,6 +466,7 @@
     // Abrir formularios
     $$('[data-nueva-clase]').forEach(function (b) { b.addEventListener('click', function () { abrirClase(null); }); });
     $$('[data-nueva-tarea]').forEach(function (b) { b.addEventListener('click', function () { abrirTarea(null); }); });
+    $$('[data-nueva-tarjeta]').forEach(function (b) { b.addEventListener('click', function () { abrirTarjeta(null); }); });
     $('#btn-dictar-tarea').addEventListener('click', iniciarDictado);
     $('#btn-cancelar-dictado').addEventListener('click', function () {
       if (reconocimiento) {
@@ -466,12 +488,16 @@
       if (marcar) return alternarTarea(marcar.dataset.marcar);
       var elTarea = ev.target.closest('[data-tarea]');
       if (elTarea) return abrirTarea(elTarea.dataset.tarea);
+      var elTarjeta = ev.target.closest('[data-tarjeta]');
+      if (elTarjeta) return abrirTarjeta(elTarjeta.dataset.tarjeta);
     });
 
     $('#form-clase').addEventListener('submit', function (ev) { guardarClase(ev.submitter && ev.submitter.value); });
     $('#form-tarea').addEventListener('submit', function (ev) { guardarTarea(ev.submitter && ev.submitter.value); });
+    $('#form-tarjeta').addEventListener('submit', function (ev) { guardarTarjeta(ev.submitter && ev.submitter.value); });
     $('#borrar-clase').addEventListener('click', borrarClase);
     $('#borrar-tarea').addEventListener('click', borrarTarea);
+    $('#borrar-tarjeta').addEventListener('click', borrarTarjeta);
 
     // Ajustes
     $('#btn-permiso').addEventListener('click', function () {
@@ -492,6 +518,10 @@
     });
     $('#aviso-tareas').addEventListener('change', function (e) {
       estado.ajustes.avisosTareaMin = e.target.value.split(',').map(Number);
+      E.saveState(estado).then(function () { aviso('Guardado'); });
+    });
+    $('#aviso-tarjetas').addEventListener('change', function (e) {
+      estado.ajustes.avisosTarjetaMin = e.target.value.split(',').map(Number);
       E.saveState(estado).then(function () { aviso('Guardado'); });
     });
 
@@ -550,14 +580,19 @@
     if (tab) tab.click();
   }
 
+  /** Selecciona `valor` en el <select>; si ninguna opción lo trae, agrega una "Personalizado". */
+  function fijarSelectConValor(selector, valor) {
+    var sel = $(selector);
+    if (!Array.prototype.some.call(sel.options, function (o) { return o.value === valor; })) {
+      sel.insertAdjacentHTML('beforeend', '<option value="' + esc(valor) + '">Personalizado</option>');
+    }
+    sel.value = valor;
+  }
+
   function aplicarAjustesEnFormulario() {
     $('#aviso-clase').value = String(estado.ajustes.avisoClaseMin);
-    var v = (estado.ajustes.avisosTareaMin || []).join(',');
-    var sel = $('#aviso-tareas');
-    if (!Array.prototype.some.call(sel.options, function (o) { return o.value === v; })) {
-      sel.insertAdjacentHTML('beforeend', '<option value="' + esc(v) + '">Personalizado</option>');
-    }
-    sel.value = v;
+    fijarSelectConValor('#aviso-tareas', (estado.ajustes.avisosTareaMin || []).join(','));
+    fijarSelectConValor('#aviso-tarjetas', (estado.ajustes.avisosTarjetaMin || []).join(','));
     $('#voz-al-abrir').checked = !!estado.ajustes.vozAlAbrir;
     $('#voz-velocidad').value = estado.ajustes.vozVelocidad || 1;
     $('#voz-tono').value = estado.ajustes.vozTono || 1;
@@ -679,6 +714,47 @@
     estado.tareas = estado.tareas.filter(function (x) { return x.id !== id; });
     $('#dialogo-tarea').close();
     guardar('tarea', 'borrar', { id: id }).then(function () { aviso('Tarea borrada'); });
+  }
+
+  /* ------------------------------------------------------------------ tarjetas */
+
+  function abrirTarjeta(id) {
+    var f = $('#form-tarjeta');
+    var t = id ? estado.tarjetas.filter(function (x) { return x.id === id; })[0] : null;
+    f.reset();
+    $('#titulo-tarjeta').textContent = t ? 'Editar tarjeta' : 'Nueva tarjeta';
+    $('#borrar-tarjeta').hidden = !t;
+    f.id.value = t ? t.id : '';
+    if (t) {
+      ['nombre', 'diaCorte', 'diaPago', 'monto', 'notas'].forEach(function (k) { f[k].value = t[k] || ''; });
+    }
+    $('#dialogo-tarjeta').showModal();
+  }
+
+  function guardarTarjeta(accion) {
+    if (accion !== 'guardar') return;
+    var f = $('#form-tarjeta');
+    var diaCorte = Math.min(31, Math.max(1, parseInt(f.diaCorte.value, 10) || 1));
+    var diaPago = Math.min(31, Math.max(1, parseInt(f.diaPago.value, 10) || 1));
+    var datos = {
+      id: f.id.value || E.uid(),
+      nombre: f.nombre.value.trim(),
+      diaCorte: diaCorte,
+      diaPago: diaPago,
+      monto: f.monto.value.trim(),
+      notas: f.notas.value.trim()
+    };
+    var i = estado.tarjetas.findIndex(function (x) { return x.id === datos.id; });
+    if (i >= 0) estado.tarjetas[i] = datos; else estado.tarjetas.push(datos);
+    guardar('tarjeta', i >= 0 ? 'editar' : 'crear', datos).then(function () { aviso('Tarjeta guardada'); });
+  }
+
+  function borrarTarjeta() {
+    var id = $('#form-tarjeta').id.value;
+    if (!id || !confirm('¿Borrar esta tarjeta?')) return;
+    estado.tarjetas = estado.tarjetas.filter(function (x) { return x.id !== id; });
+    $('#dialogo-tarjeta').close();
+    guardar('tarjeta', 'borrar', { id: id }).then(function () { aviso('Tarjeta borrada'); });
   }
 
   /* ----------------------------------------------------------- dictar tarea */

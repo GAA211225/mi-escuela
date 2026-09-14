@@ -43,6 +43,7 @@
   var DEFAULT_SETTINGS = {
     avisoClaseMin: 10,          // minutos antes de que empiece la clase
     avisosTareaMin: [1440, 120], // 1 día y 2 horas antes de la entrega
+    avisosTarjetaMin: [4320, 1440], // 3 días y 1 día antes del corte/pago
     syncUrl: '',                // endpoint opcional para respaldar/sincronizar
     tema: 'auto',
     vozAlAbrir: true,           // leer el resumen en voz alta al abrir la app
@@ -53,6 +54,7 @@
     return {
       clases: [],
       tareas: [],
+      tarjetas: [],
       ajustes: Object.assign({}, DEFAULT_SETTINGS),
       outbox: [],
       avisados: {},   // claveDeAlerta -> timestamp en que se notificó
@@ -66,6 +68,7 @@
     s.ajustes = Object.assign({}, DEFAULT_SETTINGS, s.ajustes || {});
     s.clases = Array.isArray(s.clases) ? s.clases : [];
     s.tareas = Array.isArray(s.tareas) ? s.tareas : [];
+    s.tarjetas = Array.isArray(s.tarjetas) ? s.tarjetas : [];
     s.outbox = Array.isArray(s.outbox) ? s.outbox : [];
     s.avisados = s.avisados && typeof s.avisados === 'object' ? s.avisados : {};
     return s;
@@ -166,6 +169,37 @@
     return tarea.materia || '';
   }
 
+  /* ------------------------------------------------------------------ Tarjetas */
+
+  function ultimoDiaDelMes(anio, mesIdx) {
+    return new Date(anio, mesIdx + 1, 0).getDate();
+  }
+
+  /** Próxima ocurrencia de un día fijo del mes (corte/pago), a las `hora`.
+   * Si el mes no tiene ese día (p. ej. 31 en febrero), usa el último día. */
+  function proximoDiaDelMes(desde, diaMes, hora) {
+    var d = new Date(desde);
+    d.setHours(hora == null ? 9 : hora, 0, 0, 0);
+    d.setDate(Math.min(diaMes, ultimoDiaDelMes(d.getFullYear(), d.getMonth())));
+    if (d <= desde) {
+      d.setDate(1);
+      d.setMonth(d.getMonth() + 1);
+      d.setDate(Math.min(diaMes, ultimoDiaDelMes(d.getFullYear(), d.getMonth())));
+    }
+    return d;
+  }
+
+  /** Para cada tarjeta, sus próximas fechas de corte y de pago. */
+  function proximosCortesYPagos(state, ahora) {
+    return (state.tarjetas || []).map(function (t) {
+      return {
+        tarjeta: t,
+        corte: proximoDiaDelMes(ahora, Number(t.diaCorte)),
+        pago: proximoDiaDelMes(ahora, Number(t.diaPago))
+      };
+    });
+  }
+
   /* ------------------------------------------------------------------- Alertas */
 
   /** Alertas que ya deberían haberse mostrado y siguen vigentes (ventana de 1 h). */
@@ -210,6 +244,29 @@
             url: t.url || ''
           });
         }
+      });
+    });
+
+    (state.ajustes.avisosTarjetaMin || []).forEach(function (lead) {
+      proximosCortesYPagos(state, ahora).forEach(function (o) {
+        [{ tipo: 'corte', fecha: o.corte, texto: 'Corte' }, { tipo: 'pago', fecha: o.pago, texto: 'Fecha límite de pago' }]
+          .forEach(function (ev) {
+            var momento = new Date(ev.fecha.getTime() - lead * 60000);
+            // El timestamp de la ocurrencia va en la clave: es mensual, así el
+            // aviso de este mes no bloquea el mismo aviso el mes que sigue.
+            var clave = 'tarjeta:' + o.tarjeta.id + ':' + ev.tipo + ':' + ev.fecha.getTime() + ':' + lead;
+            if (momento <= ahora && ahora - momento < VENTANA && !state.avisados[clave] && ev.fecha > ahora) {
+              var restante = lead >= 1440 ? (lead / 1440) + ' día(s)' : (lead >= 60 ? (lead / 60) + ' h' : lead + ' min');
+              var det = [o.tarjeta.nombre, o.tarjeta.monto ? ('$' + o.tarjeta.monto) : ''].filter(Boolean).join(' · ');
+              alertas.push({
+                clave: clave,
+                etiqueta: 'tarjeta-' + o.tarjeta.id + '-' + ev.tipo,
+                titulo: ev.texto + ' en ' + restante + ': ' + o.tarjeta.nombre,
+                cuerpo: (det ? det + ' · ' : '') + formatoFecha(ev.fecha),
+                url: ''
+              });
+            }
+          });
       });
     });
 
@@ -505,6 +562,8 @@
     tareasPendientes: tareasPendientes,
     lugar: lugar,
     nombreMateria: nombreMateria,
+    proximoDiaDelMes: proximoDiaDelMes,
+    proximosCortesYPagos: proximosCortesYPagos,
     alertasPendientes: alertasPendientes,
     dispararAlertas: dispararAlertas,
     formatoFecha: formatoFecha,

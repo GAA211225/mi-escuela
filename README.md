@@ -16,6 +16,12 @@ se envían solos cuando vuelve la conexión.
   pendientes) sin tener que activar nada. Se puede apagar en Ajustes → Voz, donde
   también se elige entre todas las voces instaladas en el teléfono (las de español
   primero), con velocidad y tono; cada cambio se escucha al momento.
+- **Tarjetas**: un apartado personal (pestaña 💳) para tus fechas de corte y de
+  pago de tarjetas de crédito. Por cada tarjeta guardas el día del mes de corte
+  y el día límite de pago (se recalculan solos cada mes, incluso en meses cortos
+  como febrero), y opcionalmente el monto a pagar del corte actual. Avisa antes
+  del corte y del pago igual que con las tareas (Ajustes → Avisos de tarjetas).
+  Todo se queda en el teléfono; nunca sale de ahí.
 - **Dictar una tarea**: en Tareas, el botón 🎤 escucha una frase como
   "tarea de mecánica, entregar el problemario, para mañana a las 8 de la noche, por
   classroom" y agrega la tarea sola —reconoce materia (contra tu horario), fecha,

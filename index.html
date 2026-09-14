@@ -57,6 +57,16 @@
     <div id="lista-tareas" class="lista"></div>
   </section>
 
+  <!-- ------------------------------------------------------------- TARJETAS -->
+  <section id="vista-tarjetas" class="vista">
+    <div class="fila-titulo">
+      <h2>Tarjetas</h2>
+      <button class="primario" data-nueva-tarjeta>+ Tarjeta</button>
+    </div>
+    <p class="tenue">Tus fechas de corte y de pago, solo en este teléfono.</p>
+    <div id="lista-tarjetas" class="lista"></div>
+  </section>
+
   <!-- -------------------------------------------------------------- AJUSTES -->
   <section id="vista-ajustes" class="vista">
     <h2>Ajustes</h2>
@@ -83,6 +93,15 @@
           <option value="2880,1440,120">2 días, 1 día y 2 horas antes</option>
           <option value="1440">Solo 1 día antes</option>
           <option value="120">Solo 2 horas antes</option>
+        </select>
+      </label>
+      <label class="campo">
+        <span>Avisos de corte y pago de tarjetas</span>
+        <select id="aviso-tarjetas">
+          <option value="4320,1440">3 días y 1 día antes</option>
+          <option value="10080,1440">1 semana y 1 día antes</option>
+          <option value="1440,120">1 día y 2 horas antes</option>
+          <option value="4320">Solo 3 días antes</option>
         </select>
       </label>
       <button id="btn-probar" class="secundario">Probar una notificación</button>
@@ -143,6 +162,7 @@
   <button class="tab activa" data-vista="hoy"><span>📅</span>Hoy</button>
   <button class="tab" data-vista="horario"><span>🕘</span>Horario</button>
   <button class="tab" data-vista="tareas"><span>📝</span>Tareas</button>
+  <button class="tab" data-vista="tarjetas"><span>💳</span>Tarjetas</button>
   <button class="tab" data-vista="ajustes"><span>⚙️</span>Ajustes</button>
 </nav>
 
@@ -197,6 +217,25 @@
     <label class="campo"><span>Notas</span><textarea name="notas" rows="2"></textarea></label>
     <menu>
       <button type="button" class="peligro" id="borrar-tarea" hidden>Borrar</button>
+      <button value="cancelar" class="secundario">Cancelar</button>
+      <button value="guardar" class="primario">Guardar</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dialogo-tarjeta">
+  <form method="dialog" id="form-tarjeta">
+    <h3 id="titulo-tarjeta">Nueva tarjeta</h3>
+    <input type="hidden" name="id">
+    <label class="campo"><span>Nombre</span><input name="nombre" required autocomplete="off" placeholder="BBVA Oro, Nu, Santander…"></label>
+    <div class="fila">
+      <label class="campo"><span>Día de corte</span><input name="diaCorte" type="number" min="1" max="31" required inputmode="numeric"></label>
+      <label class="campo"><span>Día límite de pago</span><input name="diaPago" type="number" min="1" max="31" required inputmode="numeric"></label>
+    </div>
+    <label class="campo"><span>Monto a pagar (opcional, actualízalo cada corte)</span><input name="monto" autocomplete="off" inputmode="decimal" placeholder="2,450.00"></label>
+    <label class="campo"><span>Notas</span><textarea name="notas" rows="2" placeholder="Últimos 4 dígitos, límite de crédito…"></textarea></label>
+    <menu>
+      <button type="button" class="peligro" id="borrar-tarjeta" hidden>Borrar</button>
       <button value="cancelar" class="secundario">Cancelar</button>
       <button value="guardar" class="primario">Guardar</button>
     </menu>

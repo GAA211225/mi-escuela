@@ -2,7 +2,7 @@
    reenvío de los cambios que se hicieron offline. Chrome / Android. */
 importScripts('js/core.js');
 
-var VERSION = 'v3';
+var VERSION = 'v4';
 var CACHE = 'mi-escuela-' + VERSION;
 var SHELL = [
   './',
