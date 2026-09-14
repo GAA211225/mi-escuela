@@ -447,7 +447,15 @@
     $$('[data-nueva-tarea]').forEach(function (b) { b.addEventListener('click', function () { abrirTarea(null); }); });
     $('#btn-dictar-tarea').addEventListener('click', iniciarDictado);
     $('#btn-cancelar-dictado').addEventListener('click', function () {
-      if (reconocimiento) { try { reconocimiento.onend = null; reconocimiento.abort(); } catch (e) {} }
+      if (reconocimiento) {
+        // Silenciamos los tres callbacks: un resultado que ya venía en camino
+        // no debe guardar una tarea después de que el usuario canceló.
+        reconocimiento.onresult = null;
+        reconocimiento.onerror = null;
+        reconocimiento.onend = null;
+        try { reconocimiento.abort(); } catch (e) {}
+        reconocimiento = null;
+      }
       $('#dialogo-dictado').close();
     });
 
@@ -696,6 +704,7 @@
     $('#dialogo-dictado').showModal();
 
     reconocimiento.onresult = function (ev) {
+      if (!$('#dialogo-dictado').open) return; // se canceló mientras llegaba el resultado
       var texto = Array.prototype.map.call(ev.results, function (r) { return r[0].transcript; }).join(' ');
       cuadro.textContent = texto;
       if (ev.results[ev.results.length - 1].isFinal) finalizarDictado(texto);
