@@ -67,6 +67,15 @@
     <div id="lista-tarjetas" class="lista"></div>
   </section>
 
+  <!-- ----------------------------------------------------------- PENDIENTES -->
+  <section id="vista-pendientes" class="vista">
+    <div class="fila-titulo">
+      <h2>Pendientes</h2>
+      <button class="primario" data-nuevo-proyecto>+ Proyecto</button>
+    </div>
+    <div id="lista-proyectos" class="lista"></div>
+  </section>
+
   <!-- -------------------------------------------------------------- AJUSTES -->
   <section id="vista-ajustes" class="vista">
     <h2>Ajustes</h2>
@@ -163,6 +172,7 @@
   <button class="tab" data-vista="horario"><span>🕘</span>Horario</button>
   <button class="tab" data-vista="tareas"><span>📝</span>Tareas</button>
   <button class="tab" data-vista="tarjetas"><span>💳</span>Tarjetas</button>
+  <button class="tab" data-vista="pendientes"><span>📌</span>Pendientes</button>
   <button class="tab" data-vista="ajustes"><span>⚙️</span>Ajustes</button>
 </nav>
 
@@ -236,6 +246,20 @@
     <label class="campo"><span>Notas</span><textarea name="notas" rows="2" placeholder="Últimos 4 dígitos, límite de crédito…"></textarea></label>
     <menu>
       <button type="button" class="peligro" id="borrar-tarjeta" hidden>Borrar</button>
+      <button value="cancelar" class="secundario">Cancelar</button>
+      <button value="guardar" class="primario">Guardar</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dialogo-proyecto">
+  <form method="dialog" id="form-proyecto">
+    <h3 id="titulo-proyecto">Nuevo proyecto</h3>
+    <input type="hidden" name="id">
+    <label class="campo"><span>Nombre</span><input name="nombre" required autocomplete="off" placeholder="Remodelación, Trámites del coche…"></label>
+    <label class="campo"><span>Notas</span><textarea name="notas" rows="2"></textarea></label>
+    <menu>
+      <button type="button" class="peligro" id="borrar-proyecto" hidden>Borrar</button>
       <button value="cancelar" class="secundario">Cancelar</button>
       <button value="guardar" class="primario">Guardar</button>
     </menu>

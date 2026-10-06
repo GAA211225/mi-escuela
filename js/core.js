@@ -55,6 +55,8 @@
       clases: [],
       tareas: [],
       tarjetas: [],
+      proyectos: [],
+      pendientes: [],
       ajustes: Object.assign({}, DEFAULT_SETTINGS),
       outbox: [],
       avisados: {},   // claveDeAlerta -> timestamp en que se notificó
@@ -69,6 +71,8 @@
     s.clases = Array.isArray(s.clases) ? s.clases : [];
     s.tareas = Array.isArray(s.tareas) ? s.tareas : [];
     s.tarjetas = Array.isArray(s.tarjetas) ? s.tarjetas : [];
+    s.proyectos = Array.isArray(s.proyectos) ? s.proyectos : [];
+    s.pendientes = Array.isArray(s.pendientes) ? s.pendientes : [];
     s.outbox = Array.isArray(s.outbox) ? s.outbox : [];
     s.avisados = s.avisados && typeof s.avisados === 'object' ? s.avisados : {};
     return s;
@@ -167,6 +171,19 @@
       if (c) return c.materia;
     }
     return tarea.materia || '';
+  }
+
+  /* ------------------------------------------------------------- Pendientes personales */
+
+  function pendientesDeProyecto(state, proyectoId) {
+    return (state.pendientes || [])
+      .filter(function (p) { return p.proyectoId === proyectoId; })
+      .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0); });
+  }
+
+  function progresoProyecto(state, proyectoId) {
+    var items = pendientesDeProyecto(state, proyectoId);
+    return { hechos: items.filter(function (p) { return p.hecho; }).length, total: items.length };
   }
 
   /* ------------------------------------------------------------------ Tarjetas */
@@ -564,6 +581,8 @@
     nombreMateria: nombreMateria,
     proximoDiaDelMes: proximoDiaDelMes,
     proximosCortesYPagos: proximosCortesYPagos,
+    pendientesDeProyecto: pendientesDeProyecto,
+    progresoProyecto: progresoProyecto,
     alertasPendientes: alertasPendientes,
     dispararAlertas: dispararAlertas,
     formatoFecha: formatoFecha,

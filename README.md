@@ -16,6 +16,11 @@ se envían solos cuando vuelve la conexión.
   pendientes) sin tener que activar nada. Se puede apagar en Ajustes → Voz, donde
   también se elige entre todas las voces instaladas en el teléfono (las de español
   primero), con velocidad y tono; cada cambio se escucha al momento.
+- **Pendientes**: un apartado (pestaña 📌) para pendientes personales organizados
+  por proyecto. Cada proyecto tiene su checklist de subtareas: marcarlas,
+  agregar nuevas con el campo de abajo de cada proyecto, borrarlas con la ✕.
+  El chip junto al nombre muestra cuántas van (2/5). Sin fechas ni avisos —
+  es una lista de pendientes simple, no un calendario.
 - **Tarjetas**: un apartado personal (pestaña 💳) para tus fechas de corte y de
   pago de tarjetas de crédito. Por cada tarjeta guardas el día del mes de corte
   y el día límite de pago (se recalculan solos cada mes, incluso en meses cortos

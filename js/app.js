@@ -95,6 +95,7 @@
     pintarHorario();
     pintarTareas();
     pintarTarjetas();
+    pintarProyectos();
     pintarRed();
     pintarPermiso();
     llenarSelectMaterias();
@@ -467,6 +468,7 @@
     $$('[data-nueva-clase]').forEach(function (b) { b.addEventListener('click', function () { abrirClase(null); }); });
     $$('[data-nueva-tarea]').forEach(function (b) { b.addEventListener('click', function () { abrirTarea(null); }); });
     $$('[data-nueva-tarjeta]').forEach(function (b) { b.addEventListener('click', function () { abrirTarjeta(null); }); });
+    $$('[data-nuevo-proyecto]').forEach(function (b) { b.addEventListener('click', function () { abrirProyecto(null); }); });
     $('#btn-dictar-tarea').addEventListener('click', iniciarDictado);
     $('#btn-cancelar-dictado').addEventListener('click', function () {
       if (reconocimiento) {
@@ -490,14 +492,30 @@
       if (elTarea) return abrirTarea(elTarea.dataset.tarea);
       var elTarjeta = ev.target.closest('[data-tarjeta]');
       if (elTarjeta) return abrirTarjeta(elTarjeta.dataset.tarjeta);
+      var editarProyecto = ev.target.closest('[data-editar-proyecto]');
+      if (editarProyecto) return abrirProyecto(editarProyecto.dataset.editarProyecto);
+      var marcarPendiente = ev.target.closest('[data-marcar-pendiente]');
+      if (marcarPendiente) return alternarPendiente(marcarPendiente.dataset.marcarPendiente);
+      var borrarPendiente = ev.target.closest('[data-borrar-pendiente]');
+      if (borrarPendiente) return borrarPendienteItem(borrarPendiente.dataset.borrarPendiente);
+    });
+
+    document.addEventListener('submit', function (ev) {
+      var formSub = ev.target.closest('[data-nueva-subtarea]');
+      if (formSub) {
+        ev.preventDefault();
+        agregarPendiente(formSub.dataset.nuevaSubtarea, formSub.titulo.value);
+      }
     });
 
     $('#form-clase').addEventListener('submit', function (ev) { guardarClase(ev.submitter && ev.submitter.value); });
     $('#form-tarea').addEventListener('submit', function (ev) { guardarTarea(ev.submitter && ev.submitter.value); });
     $('#form-tarjeta').addEventListener('submit', function (ev) { guardarTarjeta(ev.submitter && ev.submitter.value); });
+    $('#form-proyecto').addEventListener('submit', function (ev) { guardarProyecto(ev.submitter && ev.submitter.value); });
     $('#borrar-clase').addEventListener('click', borrarClase);
     $('#borrar-tarea').addEventListener('click', borrarTarea);
     $('#borrar-tarjeta').addEventListener('click', borrarTarjeta);
+    $('#borrar-proyecto').addEventListener('click', borrarProyecto);
 
     // Ajustes
     $('#btn-permiso').addEventListener('click', function () {
@@ -755,6 +773,104 @@
     estado.tarjetas = estado.tarjetas.filter(function (x) { return x.id !== id; });
     $('#dialogo-tarjeta').close();
     guardar('tarjeta', 'borrar', { id: id }).then(function () { aviso('Tarjeta borrada'); });
+  }
+
+  /* --------------------------------------------------------- proyectos y pendientes */
+
+  function pintarProyectos() {
+    var lista = estado.proyectos.slice().sort(function (a, b) { return (a.creado || 0) - (b.creado || 0); });
+    $('#lista-proyectos').innerHTML = lista.length
+      ? lista.map(itemProyecto).join('')
+      : '<div class="vacio">Todavía no tienes proyectos. Toca «+ Proyecto».</div>';
+  }
+
+  function itemProyecto(p) {
+    var prog = E.progresoProyecto(estado, p.id);
+    var subtareas = E.pendientesDeProyecto(estado, p.id);
+    var completo = prog.total > 0 && prog.hechos === prog.total;
+    return '<div class="tarjeta proyecto">' +
+      '<button class="proyecto-cabeza" data-editar-proyecto="' + p.id + '">' +
+      '<span class="titulo">' + esc(p.nombre) + '</span>' +
+      '<span class="chip' + (completo ? ' completo' : '') + '">' + prog.hechos + '/' + prog.total + '</span>' +
+      '</button>' +
+      '<div class="subtareas">' +
+      (subtareas.length ? subtareas.map(itemSubtarea).join('') : '') +
+      '</div>' +
+      '<form class="nueva-subtarea" data-nueva-subtarea="' + p.id + '">' +
+      '<input type="text" name="titulo" placeholder="Agregar pendiente…" autocomplete="off" required>' +
+      '<button type="submit" aria-label="Agregar">+</button>' +
+      '</form></div>';
+  }
+
+  function itemSubtarea(s) {
+    return '<div class="subtarea ' + (s.hecho ? 'hecha' : '') + '">' +
+      '<button class="marca" data-marcar-pendiente="' + s.id + '" aria-pressed="' + (s.hecho ? 'true' : 'false') +
+      '" aria-label="Marcar hecho">' + (s.hecho ? '✓' : '') + '</button>' +
+      '<span class="titulo">' + esc(s.titulo) + '</span>' +
+      '<button class="borrar-mini" data-borrar-pendiente="' + s.id + '" aria-label="Borrar pendiente">✕</button></div>';
+  }
+
+  function abrirProyecto(id) {
+    var f = $('#form-proyecto');
+    var p = id ? estado.proyectos.filter(function (x) { return x.id === id; })[0] : null;
+    f.reset();
+    $('#titulo-proyecto').textContent = p ? 'Editar proyecto' : 'Nuevo proyecto';
+    $('#borrar-proyecto').hidden = !p;
+    f.id.value = p ? p.id : '';
+    if (p) { f.nombre.value = p.nombre || ''; f.notas.value = p.notas || ''; }
+    $('#dialogo-proyecto').showModal();
+  }
+
+  function guardarProyecto(accion) {
+    if (accion !== 'guardar') return;
+    var f = $('#form-proyecto');
+    var previo = estado.proyectos.filter(function (x) { return x.id === f.id.value; })[0];
+    var datos = {
+      id: f.id.value || E.uid(),
+      nombre: f.nombre.value.trim(),
+      notas: f.notas.value.trim(),
+      creado: previo ? previo.creado : Date.now()
+    };
+    var i = estado.proyectos.findIndex(function (x) { return x.id === datos.id; });
+    if (i >= 0) estado.proyectos[i] = datos; else estado.proyectos.push(datos);
+    guardar('proyecto', i >= 0 ? 'editar' : 'crear', datos).then(function () { aviso('Proyecto guardado'); });
+  }
+
+  function borrarProyecto() {
+    var id = $('#form-proyecto').id.value;
+    if (!id) return;
+    var cantidad = E.pendientesDeProyecto(estado, id).length;
+    var mensaje = cantidad
+      ? '¿Borrar este proyecto y sus ' + cantidad + ' pendiente(s)?'
+      : '¿Borrar este proyecto?';
+    if (!confirm(mensaje)) return;
+    estado.proyectos = estado.proyectos.filter(function (x) { return x.id !== id; });
+    estado.pendientes = estado.pendientes.filter(function (x) { return x.proyectoId !== id; });
+    $('#dialogo-proyecto').close();
+    guardar('proyecto', 'borrar', { id: id }).then(function () { aviso('Proyecto borrado'); });
+  }
+
+  function agregarPendiente(proyectoId, titulo) {
+    titulo = titulo.trim();
+    if (!titulo) return;
+    var datos = {
+      id: E.uid(), proyectoId: proyectoId, titulo: titulo, hecho: false,
+      orden: E.pendientesDeProyecto(estado, proyectoId).length, creado: Date.now()
+    };
+    estado.pendientes.push(datos);
+    guardar('pendiente', 'crear', datos);
+  }
+
+  function alternarPendiente(id) {
+    var p = estado.pendientes.filter(function (x) { return x.id === id; })[0];
+    if (!p) return;
+    p.hecho = !p.hecho;
+    guardar('pendiente', 'editar', p);
+  }
+
+  function borrarPendienteItem(id) {
+    estado.pendientes = estado.pendientes.filter(function (x) { return x.id !== id; });
+    guardar('pendiente', 'borrar', { id: id });
   }
 
   /* ----------------------------------------------------------- dictar tarea */
