@@ -1,0 +1,46 @@
+{
+  "version": "2026-10-06",
+  "proyectos": [
+    {
+      "id": "p-coffee-cualtia",
+      "nombre": "Coffee break Cualtia",
+      "notas": "",
+      "pendientes": [
+        "Conseguir galletas",
+        "Conseguir café molido",
+        "Llevar 15 botellas de 250 ml cada día (miércoles, jueves y viernes de esta semana)"
+      ]
+    },
+    {
+      "id": "p-tapioca-cualtia",
+      "nombre": "Venta de tapioca miércoles a viernes Cualtia",
+      "notas": "",
+      "pendientes": [
+        "Hacer producción",
+        "Mandar a imprimir la lona — hoy",
+        "Conseguir hielera",
+        "Ver horarios de quién nos puede cubrir"
+      ]
+    },
+    {
+      "id": "p-codejov",
+      "nombre": "CODEJOV",
+      "notas": "",
+      "pendientes": [
+        "Hablarle al profe de mercadotecnia de la UTZAC"
+      ]
+    },
+    {
+      "id": "p-mentorias-peru",
+      "nombre": "Mentorías asesor (Perú)",
+      "notas": "Portal: gmiportal.org — guardar este enlace, es indispensable. Son 12 sesiones; cada una se marca como completada o GMI cierra la mentoría.",
+      "pendientes": [
+        "Reunión de presentación 10 AM",
+        "Revisar la Guía para Estudiantes de la Mentoría (Sesión 1 del Portal) antes de la primera reunión",
+        "Marcar \"Sesión Completada\" en el Portal del Estudiante después de cada sesión",
+        "Revisar los materiales de cada sesión antes de la reunión correspondiente",
+        "Si el mentor no ha contactado, enviarle un correo para iniciar la mentoría"
+      ]
+    }
+  ]
+}

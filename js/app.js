@@ -22,6 +22,7 @@
       registrarServiceWorker();
       abrirVistaDeHash();
       sembrarHorario();
+      sembrarPendientes();
       revisarAlertas();
       if (estado.ajustes.vozAlAbrir) hablar(resumenHablado());
       setInterval(function () { pintarHoy(); revisarAlertas(); }, 30000);
@@ -980,6 +981,44 @@
     if (estado.clases.length || estado.ajustes.horarioSembrado) return;
     estado.ajustes.horarioSembrado = true;
     cargarHorario(true);
+  }
+
+  /**
+   * Agrega los proyectos de datos/pendientes.json una sola vez por versión.
+   * Si ya existe un proyecto con el mismo nombre (capturado a mano), solo le
+   * suma las subtareas que le falten, para no duplicar nada.
+   */
+  function sembrarPendientes() {
+    return fetch('datos/pendientes.json').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (d) {
+      if (!d.version || estado.ajustes.pendientesVersion === d.version) return;
+      var mismo = function (a, b) { return String(a).trim().toLowerCase() === String(b).trim().toLowerCase(); };
+      var agregados = 0;
+      (d.proyectos || []).forEach(function (sp) {
+        var proyecto = estado.proyectos.filter(function (p) { return p.id === sp.id || mismo(p.nombre, sp.nombre); })[0];
+        if (!proyecto) {
+          proyecto = { id: sp.id, nombre: sp.nombre, notas: sp.notas || '', creado: Date.now() + estado.proyectos.length };
+          estado.proyectos.push(proyecto);
+        } else if (!proyecto.notas && sp.notas) {
+          proyecto.notas = sp.notas;
+        }
+        (sp.pendientes || []).forEach(function (titulo) {
+          var existentes = E.pendientesDeProyecto(estado, proyecto.id);
+          if (existentes.some(function (x) { return mismo(x.titulo, titulo); })) return;
+          estado.pendientes.push({
+            id: E.uid(), proyectoId: proyecto.id, titulo: titulo, hecho: false,
+            orden: existentes.length, creado: Date.now()
+          });
+          agregados++;
+        });
+      });
+      estado.ajustes.pendientesVersion = d.version;
+      return guardar('todo', 'importar-pendientes', { agregados: agregados }).then(function () {
+        if (agregados) aviso('Se agregaron ' + agregados + ' pendientes a tus proyectos');
+      });
+    }).catch(function () { /* sin conexión: se reintenta la próxima vez */ });
   }
 
   /** Carga el horario transcrito de la escuela (datos/horario.json). */

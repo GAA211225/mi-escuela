@@ -2,7 +2,7 @@
    reenvío de los cambios que se hicieron offline. Chrome / Android. */
 importScripts('js/core.js');
 
-var VERSION = 'v5';
+var VERSION = 'v6';
 var CACHE = 'mi-escuela-' + VERSION;
 var SHELL = [
   './',
@@ -11,6 +11,7 @@ var SHELL = [
   'js/core.js',
   'js/app.js',
   'datos/horario.json',
+  'datos/pendientes.json',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
