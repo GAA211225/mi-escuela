@@ -10,23 +10,62 @@
 
   var $ = function (sel) { return document.querySelector(sel); };
   var $$ = function (sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); };
+  /** addEventListener que no truena si el elemento no existe (p. ej. HTML de otra versión). */
+  var on = function (sel, evento, fn) {
+    var el = $(sel);
+    if (el) el.addEventListener(evento, fn); else console.warn('Falta ' + sel);
+  };
 
   /* ------------------------------------------------------------------- arranque */
 
   document.addEventListener('DOMContentLoaded', function () {
+    registrarServiceWorker();
     E.loadState().then(function (s) {
       estado = s;
       conectarUI();
       pintarTodo();
       aplicarAjustesEnFormulario();
-      registrarServiceWorker();
       abrirVistaDeHash();
       sembrarHorario();
       sembrarPendientes();
       revisarAlertas();
       if (estado.ajustes.vozAlAbrir) hablar(resumenHablado());
       setInterval(function () { pintarHoy(); revisarAlertas(); }, 30000);
-    });
+    }).catch(mostrarFalloDeArranque);
+  });
+
+  /** Si algo truena al abrir, en vez de una pantalla muerta: un botón que limpia
+   * la caché de la app y la recarga. Tus datos (IndexedDB) no se tocan. */
+  function mostrarFalloDeArranque(err) {
+    console.error('Fallo al arrancar', err);
+    if ($('#fallo-arranque')) return;
+    var caja = document.createElement('div');
+    caja.id = 'fallo-arranque';
+    caja.className = 'tarjeta';
+    caja.style.cssText = 'margin:16px;border-color:var(--peligro)';
+    caja.innerHTML = '<h3>La app no pudo abrir bien</h3>' +
+      '<p class="tenue">Suele pasar justo después de una actualización. Repararla baja la versión ' +
+      'nueva; tus clases, tareas, tarjetas y pendientes no se borran.</p>' +
+      '<button class="primario" type="button">Reparar y recargar</button>';
+    caja.querySelector('button').addEventListener('click', repararApp);
+    document.body.insertBefore(caja, document.body.firstChild);
+  }
+
+  function repararApp() {
+    var pasos = [];
+    if ('serviceWorker' in navigator) {
+      pasos.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+        return Promise.all(regs.map(function (r) { return r.unregister(); }));
+      }));
+    }
+    if (self.caches) {
+      pasos.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+    }
+    Promise.all(pasos).catch(function () {}).then(function () { location.reload(); });
+  }
+
+  window.addEventListener('error', function (ev) {
+    if (!estado || !document.querySelector('.vista.activa *')) mostrarFalloDeArranque(ev.error || ev.message);
   });
 
   document.addEventListener('visibilitychange', function () {
@@ -38,7 +77,14 @@
 
   function registrarServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('sw.js').then(function (reg) {
+    var habiaControlador = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      // Llegó una versión nueva del service worker: recargar una vez para usarla entera.
+      if (!habiaControlador || sessionStorage.getItem('recargadoPorSW')) return;
+      sessionStorage.setItem('recargadoPorSW', '1');
+      location.reload();
+    });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
       registro = reg;
       pedirAvisosPeriodicos(reg);
     }).catch(function (e) { console.warn('SW no registrado', e); });
@@ -470,8 +516,8 @@
     $$('[data-nueva-tarea]').forEach(function (b) { b.addEventListener('click', function () { abrirTarea(null); }); });
     $$('[data-nueva-tarjeta]').forEach(function (b) { b.addEventListener('click', function () { abrirTarjeta(null); }); });
     $$('[data-nuevo-proyecto]').forEach(function (b) { b.addEventListener('click', function () { abrirProyecto(null); }); });
-    $('#btn-dictar-tarea').addEventListener('click', iniciarDictado);
-    $('#btn-cancelar-dictado').addEventListener('click', function () {
+    on('#btn-dictar-tarea', 'click', iniciarDictado);
+    on('#btn-cancelar-dictado', 'click', function () {
       if (reconocimiento) {
         // Silenciamos los tres callbacks: un resultado que ya venía en camino
         // no debe guardar una tarea después de que el usuario canceló.
@@ -509,20 +555,20 @@
       }
     });
 
-    $('#form-clase').addEventListener('submit', function (ev) { guardarClase(ev.submitter && ev.submitter.value); });
-    $('#form-tarea').addEventListener('submit', function (ev) { guardarTarea(ev.submitter && ev.submitter.value); });
-    $('#form-tarjeta').addEventListener('submit', function (ev) { guardarTarjeta(ev.submitter && ev.submitter.value); });
-    $('#form-proyecto').addEventListener('submit', function (ev) { guardarProyecto(ev.submitter && ev.submitter.value); });
-    $('#borrar-clase').addEventListener('click', borrarClase);
-    $('#borrar-tarea').addEventListener('click', borrarTarea);
-    $('#borrar-tarjeta').addEventListener('click', borrarTarjeta);
-    $('#borrar-proyecto').addEventListener('click', borrarProyecto);
+    on('#form-clase', 'submit', function (ev) { guardarClase(ev.submitter && ev.submitter.value); });
+    on('#form-tarea', 'submit', function (ev) { guardarTarea(ev.submitter && ev.submitter.value); });
+    on('#form-tarjeta', 'submit', function (ev) { guardarTarjeta(ev.submitter && ev.submitter.value); });
+    on('#form-proyecto', 'submit', function (ev) { guardarProyecto(ev.submitter && ev.submitter.value); });
+    on('#borrar-clase', 'click', borrarClase);
+    on('#borrar-tarea', 'click', borrarTarea);
+    on('#borrar-tarjeta', 'click', borrarTarjeta);
+    on('#borrar-proyecto', 'click', borrarProyecto);
 
     // Ajustes
-    $('#btn-permiso').addEventListener('click', function () {
+    on('#btn-permiso', 'click', function () {
       Notification.requestPermission().then(function () { pintarPermiso(); revisarAlertas(); });
     });
-    $('#btn-probar').addEventListener('click', function () {
+    on('#btn-probar', 'click', function () {
       if (Notification.permission !== 'granted') return aviso('Primero activa las notificaciones');
       navigator.serviceWorker.ready.then(function (reg) {
         reg.showNotification('Así se verán tus avisos', {
@@ -531,59 +577,59 @@
         });
       });
     });
-    $('#aviso-clase').addEventListener('change', function (e) {
+    on('#aviso-clase', 'change', function (e) {
       estado.ajustes.avisoClaseMin = Number(e.target.value);
       E.saveState(estado).then(function () { aviso('Guardado'); });
     });
-    $('#aviso-tareas').addEventListener('change', function (e) {
+    on('#aviso-tareas', 'change', function (e) {
       estado.ajustes.avisosTareaMin = e.target.value.split(',').map(Number);
       E.saveState(estado).then(function () { aviso('Guardado'); });
     });
-    $('#aviso-tarjetas').addEventListener('change', function (e) {
+    on('#aviso-tarjetas', 'change', function (e) {
       estado.ajustes.avisosTarjetaMin = e.target.value.split(',').map(Number);
       E.saveState(estado).then(function () { aviso('Guardado'); });
     });
 
-    $('#voz-al-abrir').addEventListener('change', function (e) {
+    on('#voz-al-abrir', 'change', function (e) {
       estado.ajustes.vozAlAbrir = e.target.checked;
       E.saveState(estado);
       if (e.target.checked) hablar(resumenHablado());
     });
-    $('#voz-velocidad').addEventListener('input', function (e) {
+    on('#voz-velocidad', 'input', function (e) {
       $('#val-velocidad').textContent = Number(e.target.value).toFixed(1);
     });
-    $('#voz-velocidad').addEventListener('change', function (e) {
+    on('#voz-velocidad', 'change', function (e) {
       estado.ajustes.vozVelocidad = Number(e.target.value);
       E.saveState(estado).then(function () { hablar(FRASE_PRUEBA); });
     });
-    $('#voz-tono').addEventListener('input', function (e) {
+    on('#voz-tono', 'input', function (e) {
       $('#val-tono').textContent = Number(e.target.value).toFixed(1);
     });
-    $('#voz-tono').addEventListener('change', function (e) {
+    on('#voz-tono', 'change', function (e) {
       estado.ajustes.vozTono = Number(e.target.value);
       E.saveState(estado).then(function () { hablar(FRASE_PRUEBA); });
     });
-    $('#voz-elegida').addEventListener('change', function (e) {
+    on('#voz-elegida', 'change', function (e) {
       estado.ajustes.vozNombre = e.target.value;
       E.saveState(estado).then(function () { hablar(FRASE_PRUEBA); });
     });
-    $('#btn-probar-voz').addEventListener('click', function () { hablar(FRASE_PRUEBA); });
-    $('#btn-leer').addEventListener('click', function () { hablar(resumenHablado()); });
-    $('#btn-voz').addEventListener('click', function () {
+    on('#btn-probar-voz', 'click', function () { hablar(FRASE_PRUEBA); });
+    on('#btn-leer', 'click', function () { hablar(resumenHablado()); });
+    on('#btn-voz', 'click', function () {
       if (speechSynthesis.speaking) { speechSynthesis.cancel(); return; }
       hablar(resumenHablado());
     });
 
-    $('#sync-url').addEventListener('change', function (e) {
+    on('#sync-url', 'change', function (e) {
       estado.ajustes.syncUrl = e.target.value.trim();
       E.saveState(estado).then(function () { pintarEstadoSync(); aviso('Servidor guardado'); });
     });
-    $('#btn-sync').addEventListener('click', function () { sincronizar(false); });
+    on('#btn-sync', 'click', function () { sincronizar(false); });
 
-    $('#btn-exportar').addEventListener('click', exportar);
-    $('#btn-importar').addEventListener('click', function () { $('#archivo-importar').click(); });
-    $('#archivo-importar').addEventListener('change', importar);
-    $('#btn-horario-escuela').addEventListener('click', function () { cargarHorario(false); });
+    on('#btn-exportar', 'click', exportar);
+    on('#btn-importar', 'click', function () { $('#archivo-importar').click(); });
+    on('#archivo-importar', 'change', importar);
+    on('#btn-horario-escuela', 'click', function () { cargarHorario(false); });
 
     if ('speechSynthesis' in window) {
       llenarVoces();

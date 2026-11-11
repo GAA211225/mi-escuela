@@ -2,7 +2,7 @@
    reenvío de los cambios que se hicieron offline. Chrome / Android. */
 importScripts('js/core.js');
 
-var VERSION = 'v6';
+var VERSION = 'v7';
 var CACHE = 'mi-escuela-' + VERSION;
 var SHELL = [
   './',
@@ -19,7 +19,11 @@ var SHELL = [
 ];
 
 self.addEventListener('install', function (ev) {
-  ev.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () {
+  // cache: 'reload' salta la caché HTTP de GitHub Pages (10 min): así la copia
+  // offline siempre es un juego completo de la misma versión.
+  ev.waitUntil(caches.open(CACHE).then(function (c) {
+    return c.addAll(SHELL.map(function (u) { return new Request(u, { cache: 'reload' }); }));
+  }).then(function () {
     return self.skipWaiting();
   }));
 });
@@ -34,20 +38,23 @@ self.addEventListener('activate', function (ev) {
   }).then(function () { return self.clients.claim(); }));
 });
 
-/* La app se sirve desde caché primero (arranca sin internet) y se refresca por detrás. */
+/* Con internet, siempre la versión publicada (revalidando contra el servidor, sin
+   la caché HTTP); sin internet, la copia guardada. Servir primero la copia vieja
+   podía mezclar archivos de dos versiones y dejar la app sin arrancar. */
 self.addEventListener('fetch', function (ev) {
   var req = ev.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   ev.respondWith(
-    caches.match(req).then(function (hit) {
-      var red = fetch(req).then(function (res) {
-        if (res && res.ok) {
-          var copia = res.clone();
-          caches.open(CACHE).then(function (c) { c.put(req, copia); });
-        }
-        return res;
-      }).catch(function () { return hit || caches.match('index.html'); });
-      return hit || red;
+    fetch(req, { cache: 'no-cache' }).then(function (res) {
+      if (res && res.ok) {
+        var copia = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(req, copia); });
+      }
+      return res;
+    }).catch(function () {
+      return caches.match(req).then(function (hit) {
+        return hit || (req.mode === 'navigate' ? caches.match('index.html') : Response.error());
+      });
     })
   );
 });
